@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from transformers import CLIPTokenizer
 import blip
 import fine_tune_model
