@@ -4,6 +4,7 @@ import blip
 import fine_tune_model
 import os
 import wandb
+import json
 
 #定义checkpoint
 checkpoint = 'runwayml/stable-diffusion-v1-5'
@@ -30,7 +31,7 @@ for directory in cheese_directories:
         files[cheese_list[cheese_directories.index(directory)]] = cheese_images
     
 for name in cheese_list:
-    tokenizer.add_tokens(name)
+    tokenizer.add_tokens('<'+name+'>')
 
 all_images = []
 for name in cheese_list:
@@ -38,7 +39,10 @@ for name in cheese_list:
         if(image.endswith(('jpg','png','jpeg','bmp'))):
             all_images.append(image)
  
- 
+#captionning_validation loading
+f2 = open('captionning_validation' + '.json', 'r')
+captionning_validation = json.load(f2)
+f2.close()
     
 import torch
 import torchvision
@@ -59,7 +63,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         data = {}
-        text = blip.image_to_text(all_images[i])
+        text = captionning_validation[all_images[i]]
         #选择选择一段文字,并编码
         data['input_ids'] = tokenizer(
             text,
@@ -177,7 +181,7 @@ def train(cfg):
         lr=2e-3,
     )
     loss_mean = []
-    for epoch in range(6000):
+    for epoch in range(cfg.epoch):
         for i, data in enumerate(loader):
             data['pixel_values'] = data['pixel_values'].to(device)
             data['input_ids'] = data['input_ids'].to(device)

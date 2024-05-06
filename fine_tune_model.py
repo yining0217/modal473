@@ -1,17 +1,22 @@
 from transformers import CLIPTextModel
 from diffusers import AutoencoderKL, UNet2DConditionModel
+from transformers import CLIPTokenizer
 
 def model1(checkpoint): ## 除text_encoder外都冻结
-    #加载模型
     text_encoder = CLIPTextModel.from_pretrained(checkpoint,
                                                  subfolder='text_encoder')
     vae = AutoencoderKL.from_pretrained(checkpoint, subfolder='vae')
-    unet = UNet2DConditionModel.from_pretrained(checkpoint, subfolder='unet')
+    model_name = "CompVis/stable-diffusion-v1-4"
+    unet = UNet2DConditionModel.from_pretrained(model_name, subfolder="unet")
+    #unet = UNet2DConditionModel.from_pretrained(checkpoint, subfolder='unet')
 
     text_encoder.train()
     vae.eval()
     unet.eval()
-
+    tokenizer = CLIPTokenizer.from_pretrained(
+    checkpoint,
+    subfolder='tokenizer',
+    )
     #添加新词
     text_encoder.resize_token_embeddings(tokenizer.vocab_size + 37)
     
