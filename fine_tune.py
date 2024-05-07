@@ -1,16 +1,60 @@
-# -*- coding: utf-8 -*-
-from transformers import CLIPTokenizer
 import fine_tune_model
 import os
 import wandb
 import json
 
-#定义checkpoint
-checkpoint = 'runwayml/stable-diffusion-v1-5'
+import torch
+import torchvision
+import torchvision.transforms as transforms
+import random
+from PIL import Image
+import numpy as np
+
+from diffusers import PNDMScheduler, StableDiffusionPipeline
+from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+from transformers import CLIPFeatureExtractor
+
+from diffusers import DDPMScheduler
+
+from transformers import CLIPTextModel
+from diffusers import AutoencoderKL, UNet2DConditionModel
+from transformers import CLIPTokenizer
+
+def jpg_to_tensor(image_path):
+    """
+    Function to transform a colorful JPG image to a PyTorch tensor.
+
+    Parameters:
+    image_path (str): Path to the JPG image file.
+
+    Returns:
+    torch.Tensor: Tensor representing the image.
+    """
+    # Define transformations
+    transform = transforms.Compose([
+        transforms.Resize((512, 512)),  # Resize the image to 512x512
+        transforms.ToTensor(),           # Convert image to tensor
+    ])
+    
+    # Load the image
+    image = Image.open(image_path)
+    
+    # Apply transformations
+    tensor = transform(image)
+    
+    return tensor
+
+
+noise_scheduler = DDPMScheduler(beta_start=0.00085,
+                                beta_end=0.012,
+                                beta_schedule='scaled_linear',
+                                num_train_timesteps=1000)
+                                ##tensor_format='pt')
+
 
 #加载tokenizer
 tokenizer = CLIPTokenizer.from_pretrained(
-    checkpoint,
+    'models/cheese_chellenge',
     subfolder='tokenizer',
 )
 #cheese_name导入
@@ -29,9 +73,6 @@ for directory in cheese_directories:
         for file in filenames:
             cheese_images.append(directory+'/'+file)
         files[cheese_list[cheese_directories.index(directory)]] = cheese_images
-    
-for name in cheese_list:
-    tokenizer.add_tokens('<'+name+'>')
 
 all_images = []
 for name in cheese_list:
@@ -43,12 +84,6 @@ for name in cheese_list:
 f2 = open('captionning_validation' + '.json', 'r')
 captionning_validation = json.load(f2)
 f2.close()
-    
-import torch
-import torchvision
-import random
-import PIL.Image
-import numpy as np
 
 
 #定义数据集
@@ -74,27 +109,11 @@ class Dataset(torch.utils.data.Dataset):
         )['input_ids'][0]
 
         #加载图片
-        image = PIL.Image.open(all_images[i])
-
-        #图像增强
-        image = PIL.Image.fromarray(np.array(image).astype(np.uint8))
-        image = image.resize((512, 512), resample=PIL.Image.BICUBIC)
-        image = self.flip_transform(image)
-        image = np.array(image).astype(np.uint8)
-        image = (image / 127.5 - 1.0).astype(np.float32)
-
-        data['pixel_values'] = torch.from_numpy(image).permute(2, 0, 1)
+        data['pixel_values'] = jpg_to_tensor(all_images[i])
 
         return data
 
 
-from diffusers import DDPMScheduler
-
-noise_scheduler = DDPMScheduler(beta_start=0.00085,
-                                beta_end=0.012,
-                                beta_schedule='scaled_linear',
-                                num_train_timesteps=1000)
-                                ##tensor_format='pt')
 
 def forward(data):
     device = data['pixel_values'].device
@@ -131,9 +150,6 @@ def forward(data):
 
     return loss
 
-from diffusers import PNDMScheduler, StableDiffusionPipeline
-from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-from transformers import CLIPFeatureExtractor
 
 
 def save():
@@ -160,24 +176,39 @@ def save():
     ).cpu()
     torch.save(learned_embeds, 'models/cheese_chellenge/learned_embeds.bin')
     
-dataset = Dataset()
-loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
-text_encoder, vae, unet = fine_tune_model.model1(checkpoint)
 
 def train(cfg):
-    logger = wandb.init(project="challenge_cheese", name=cfg['experiment_name'])
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     global text_encoder
     global vae
     global unet
+    
+    dataset = Dataset()
+    loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
+    text_encoder, vae, unet = fine_tune_model.model2('models/cheese_chellenge')
 
     text_encoder = text_encoder.to(device)
     vae = vae.to(device)
     unet = unet.to(device)
-
+    
+    pipeline = StableDiffusionPipeline(
+        text_encoder=text_encoder,
+        vae=vae,
+        unet=unet,
+        tokenizer=tokenizer,
+        scheduler=PNDMScheduler(beta_start=0.00085,
+                                beta_end=0.012,
+                                beta_schedule='scaled_linear',
+                                skip_prk_steps=True),
+        safety_checker=StableDiffusionSafetyChecker.from_pretrained(
+            'CompVis/stable-diffusion-safety-checker'),
+        feature_extractor=CLIPFeatureExtractor.from_pretrained(
+            'openai/clip-vit-base-patch32'),
+    )
+    
     optimizer = torch.optim.AdamW(
-        text_encoder.get_input_embeddings().parameters(),
+        pipeline.parameters(),
         lr=2e-3,
     )
     loss_mean = []
@@ -187,18 +218,12 @@ def train(cfg):
             data['input_ids'] = data['input_ids'].to(device)
             loss = forward(data)
             loss.backward()
-            logger.log(
-            {
-                "epoch": epoch,
-                "train_loss_epoch": loss,
-            }
-        )
+            
             #把除了新词以外,其他词的梯度置为0
             grads = text_encoder.get_input_embeddings().weight.grad
             for j in range(grads.shape[0]):
                 if not(j>=49408 and j<49408+37):
                     grads[j, :] = 0
-
             optimizer.step()
             optimizer.zero_grad()
             
@@ -208,5 +233,4 @@ def train(cfg):
     
     print('save successful')
     
-train({'experiment_name':'finetune_epoch_100','epoch':100})
-
+train({'experiment_name':'finetune_epoch_100_allunfreeze','epoch':100})

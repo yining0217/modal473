@@ -40,4 +40,38 @@ def model1(checkpoint): ## 除text_encoder外都冻结
 
     return text_encoder, vae, unet
 
+def model2(checkpoint): ## 除text_encoder外都冻结
+    text_encoder = CLIPTextModel.from_pretrained(checkpoint,
+                                                 subfolder='text_encoder')
+    vae = AutoencoderKL.from_pretrained(checkpoint, subfolder='vae')
+    model_name = "CompVis/stable-diffusion-v1-4"
+    unet = UNet2DConditionModel.from_pretrained(model_name, subfolder="unet")
+    #unet = UNet2DConditionModel.from_pretrained(checkpoint, subfolder='unet')
+
+    text_encoder.train()
+    vae.eval()
+    unet.eval()
+    tokenizer = CLIPTokenizer.from_pretrained(
+    checkpoint,
+    subfolder='tokenizer',
+    )
+    #添加新词
+    text_encoder.resize_token_embeddings(tokenizer.vocab_size + 37)
+    
+    #初始化新词的参数 toy -> <cat-toy>
+    token_embeds = text_encoder.get_input_embeddings().weight.data
+    
+    for i in range(49408,49408+ 37):
+        token_embeds[i] = token_embeds[10738]
+
+    return text_encoder, vae, unet
+
+def model_reload(checkpoint):
+    text_encoder = CLIPTextModel.from_pretrained(checkpoint,
+                                                 subfolder='text_encoder')
+    vae = AutoencoderKL.from_pretrained(checkpoint, subfolder='vae')
+    unet = UNet2DConditionModel.from_pretrained(checkpoint, subfolder='unet')
+    
+    return text_encoder, vae, unet
+
 
