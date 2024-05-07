@@ -153,13 +153,13 @@ def save():
     pipeline.save_pretrained('models/cheese_chellenge')
     #保存新词的映射
     learned_embeds = {}
-    for i in range(49408,49408+47):
+    for i in range(49408,49408+37):
         learned_embeds[i] = text_encoder.get_input_embeddings().weight[i].detach(
     ).cpu()
     torch.save(learned_embeds, 'models/cheese_chellenge/learned_embeds.bin')
     
 dataset = Dataset()
-loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
+loader = torch.utils.data.DataLoader(dataset, batch_size= 16, shuffle=True)
 text_encoder, vae, unet = fine_tune_model.model1(checkpoint)
 
 def train(cfg):
@@ -202,11 +202,12 @@ def train(cfg):
             optimizer.zero_grad()
 
             loss_mean.append(loss.item())
+            if( i == 200):
+                save()
+                print('save successful')
 
-        if epoch % 30 == 0:
-            print(epoch, np.mean(loss_mean))
-            loss_mean = []
+        print(epoch)
+
     save()
 
-save()
-train({'experiment_name':'e1','epoch':1})
+train({'experiment_name':'model1:epoch 200','epoch':1})

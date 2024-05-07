@@ -5,8 +5,6 @@ import torch;
 
 def test(prompt):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    #节省显存
-    device = 'cpu'
 
     #加载
     pipe = StableDiffusionPipeline.from_pretrained('models/cheese_chellenge',
@@ -14,18 +12,7 @@ def test(prompt):
     pipe = pipe.to(device)
     
     #运算
-    images = pipe([prompt] * 4, num_inference_steps=50,
-                  guidance_scale=7.5).images
+    image = pipe(prompt).images[0]
+    image.save('test.jpg')
 
-    #画图
-    def show(image, idx):
-        plt.subplot(1, 4, idx)
-        plt.imshow(image)
-        plt.axis('off')
-
-    plt.figure(figsize=[8, 3])
-    for i in range(len(images)):
-        show(images[i], i + 1)
-    plt.show()
-
-test('<Emmental> : a cheese')
+test("<POULIGNY SAINT- PIERRE> :a close up of a piece of cheese on a rock")
