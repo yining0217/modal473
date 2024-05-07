@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from transformers import CLIPTokenizer
 import fine_tune_model
 import os
@@ -6,6 +7,7 @@ import json
 
 #定义checkpoint
 checkpoint = 'runwayml/stable-diffusion-v1-5'
+
 #加载tokenizer
 tokenizer = CLIPTokenizer.from_pretrained(
     checkpoint,
@@ -159,11 +161,11 @@ def save():
     torch.save(learned_embeds, 'models/cheese_chellenge/learned_embeds.bin')
     
 dataset = Dataset()
-loader = torch.utils.data.DataLoader(dataset, batch_size= 16, shuffle=True)
+loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
 text_encoder, vae, unet = fine_tune_model.model1(checkpoint)
 
 def train(cfg):
-    logger = wandb.init(project="challenge_cheese", name= cfg['experiment_name'])
+    logger = wandb.init(project="challenge_cheese", name=cfg['experiment_name'])
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     global text_encoder
@@ -183,7 +185,6 @@ def train(cfg):
         for i, data in enumerate(loader):
             data['pixel_values'] = data['pixel_values'].to(device)
             data['input_ids'] = data['input_ids'].to(device)
-
             loss = forward(data)
             loss.backward()
             logger.log(
@@ -200,14 +201,12 @@ def train(cfg):
 
             optimizer.step()
             optimizer.zero_grad()
-
+            
             loss_mean.append(loss.item())
-            if( i == 200):
-                save()
-                print('save successful')
-
         print(epoch)
-
-    save()
-train({'experiment_name':'model1:epoch 200','epoch':1})
+        save()
+    
+    print('save successful')
+    
+train({'experiment_name':'finetune_epoch_100','epoch':100})
 
