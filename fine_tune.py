@@ -153,7 +153,7 @@ def save():
     pipeline.save_pretrained('models/cheese_chellenge')
     #保存新词的映射
     learned_embeds = {}
-    for i in range(49408,49408+47):
+    for i in range(49408,49408+37):
         learned_embeds[i] = text_encoder.get_input_embeddings().weight[i].detach(
     ).cpu()
     torch.save(learned_embeds, 'models/cheese_chellenge/learned_embeds.bin')
