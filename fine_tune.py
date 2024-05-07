@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 from transformers import CLIPTokenizer
-import blip
 import fine_tune_model
 import os
 import wandb
@@ -165,7 +163,7 @@ loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
 text_encoder, vae, unet = fine_tune_model.model1(checkpoint)
 
 def train(cfg):
-    logger = wandb.init(project="challenge_cheese", name=cfg.experiment_name)
+    logger = wandb.init(project="challenge_cheese", name= cfg['experiment_name'])
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     global text_encoder
@@ -181,7 +179,7 @@ def train(cfg):
         lr=2e-3,
     )
     loss_mean = []
-    for epoch in range(cfg.epoch):
+    for epoch in range(cfg['epoch']):
         for i, data in enumerate(loader):
             data['pixel_values'] = data['pixel_values'].to(device)
             data['input_ids'] = data['input_ids'].to(device)
@@ -210,4 +208,5 @@ def train(cfg):
             loss_mean = []
     save()
 
-train()
+save()
+train({'experiment_name':'e1','epoch':1})
